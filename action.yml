@@ -1,0 +1,83 @@
+name: 'Setup Node.js project'
+description: 'Common first steps for Node.js GH actions jobs.'
+
+inputs:
+  fetch-depth:
+    description: 'Number of commits to fetch. 0 indicates all history for all branches and tags.'
+    required: false
+    default: '1'
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: 'Checkout'
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: 'Read node.js version'
+      id: node-version
+      shell: bash
+      run: |
+        ver_files=".node-version .nvmrc"
+        for ver_file in $ver_files ''
+        do
+          if [ -r "$ver_file" ]
+          then
+            break
+          fi
+        done
+        if [ -z "$ver_file" ]
+        then
+          echo >&2 "ERROR Failed locate node.js version file. Tried: $ver_files"
+          exit 1
+        fi
+
+        ver="$( sed 's/^v//' .nvmrc )"
+        if [ -z "$ver" ]
+        then
+          echo >&2 "ERROR Failed to read version number from $ver_file"
+          exit 1
+        else
+          echo "Found version '$ver' in .nvmrc"
+        fi
+        echo "::set-output name=value::$ver"
+
+    - name: 'Cache node_modules'
+      id: cache-node-modules
+      uses: actions/cache@v2
+      with:
+        path: '**/node_modules'
+        key: |
+          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/yarn.lock') }}
+          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-
+
+    - name: 'Setup node'
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ steps.node-version.outputs.value }}
+
+    - name: 'Install Yarn'
+      shell: bash
+      run: |
+        if ! command -v yarn >/dev/null
+        then
+          npm install -g yarn
+        fi
+
+    - name: 'Install modules'
+      shell: bash
+      run: |
+        if [ -r "package-lock.json" ]
+        then
+          npm install
+        elif [ -r "yarn.lock" ]
+        then
+          yarn install --frozen-lockfile
+        else
+          echo >&2 "ERROR No package lock file found."
+          exit 1
+        fi

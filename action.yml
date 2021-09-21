@@ -48,7 +48,9 @@ runs:
       id: cache-node-modules
       uses: actions/cache@v2
       with:
-        path: '**/node_modules'
+        path: |
+          **/node_modules
+          ~/.cache/Cypress
         key: |
           modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
         restore-keys: |

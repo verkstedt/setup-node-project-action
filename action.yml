@@ -50,9 +50,9 @@ runs:
       with:
         path: '**/node_modules'
         key: |
-          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/yarn.lock') }}
+          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
         restore-keys: |
-          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/yarn.lock') }}
+          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
           modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-
 
     - name: 'Setup node'

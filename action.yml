@@ -7,6 +7,11 @@ inputs:
     required: false
     default: '1'
 
+outputs:
+  package-dir:
+    description: "Path under which node package lives. To be used as 'working-directory' for other steps."
+    value: ${{ steps.find-package-dir.outputs.package-dir }}
+
 runs:
   using: "composite"
   steps:
@@ -16,31 +21,50 @@ runs:
       with:
         fetch-depth: ${{ inputs.fetch-depth }}
 
+    - name: 'Find package directory'
+      id: find-package-dir
+      shell: sh
+      run: |
+        package_json="$( git ls-files ':(glob)**/package.json' | head -n1 )"
+        if [ -z "$package_json" ]
+        then
+          echo "ERROR Failed to locate package.json."
+          exit 1
+        fi
+        package_dir="$( dirname "$package_json" )"
+        echo "Found package.json in '$package_dir'."
+        echo "::set-output name=package-dir::$package_dir"
+
     - name: 'Read node.js version'
       id: node-version
-      shell: bash
+      shell: sh
+      env:
+        PACKAGE_DIR: ${{ steps.find-package-dir.outputs.package-dir }}
       run: |
-        ver_files=".node-version .nvmrc"
-        for ver_file in $ver_files ''
+        for file in .node-version .nvmrc
         do
+          ver_file="$PACKAGE_DIR/$file"
           if [ -r "$ver_file" ]
           then
-            break
+            break 2
+          else
+            unset ver_file
           fi
         done
+
         if [ -z "$ver_file" ]
         then
-          echo >&2 "ERROR Failed locate node.js version file. Tried: $ver_files"
+          echo >&2 "ERROR Failed to locate node.js version file."
           exit 1
         fi
 
-        ver="$( sed 's/^v//' .nvmrc )"
+        ver="$( sed 's/^v//' "$ver_file" )"
         if [ -z "$ver" ]
         then
           echo >&2 "ERROR Failed to read version number from $ver_file"
           exit 1
         else
-          echo "Found version '$ver' in .nvmrc"
+          echo "Found version '$ver' in $ver_file"
         fi
         echo "::set-output name=value::$ver"
 
@@ -63,7 +87,7 @@ runs:
         node-version: ${{ steps.node-version.outputs.value }}
 
     - name: 'Install Yarn'
-      shell: bash
+      shell: sh
       run: |
         if ! command -v yarn >/dev/null
         then
@@ -71,7 +95,8 @@ runs:
         fi
 
     - name: 'Install modules'
-      shell: bash
+      shell: sh
+      working-directory: ${{ steps.find-package-dir.outputs.package-dir }}
       run: |
         if [ -r "package-lock.json" ]
         then

@@ -25,6 +25,7 @@ runs:
       id: find-package-dir
       shell: sh
       run: |
+        # Take first package.json that we can find
         package_json="$( git ls-files ':(glob)**/package.json' | head -n1 )"
         if [ -z "$package_json" ]
         then
@@ -41,12 +42,13 @@ runs:
       env:
         PACKAGE_DIR: ${{ steps.find-package-dir.outputs.package-dir }}
       run: |
-        for file in .node-version .nvmrc
+        ver_files=".node-version .nvmrc"
+        for file in $ver_files
         do
           ver_file="$PACKAGE_DIR/$file"
           if [ -r "$ver_file" ]
           then
-            break 2
+            break
           else
             unset ver_file
           fi
@@ -54,7 +56,7 @@ runs:
 
         if [ -z "$ver_file" ]
         then
-          echo >&2 "ERROR Failed to locate node.js version file."
+          echo >&2 "ERROR Failed to locate node.js version file. Tried: $ver_files (in $PACKAGE_DIR)"
           exit 1
         fi
 

@@ -20,10 +20,10 @@ outputs:
     value: ${{ steps.determine-package-dir.outputs.value }}
   branch:
     description: "Branch name. Also works for PR events."
-    value: ${ steps.determine-branch.outputs.value }}
+    value: ${{ steps.determine-branch.outputs.value }}
   sha:
     description: "SHA. Also works for PR events."
-    value: ${ steps.determine-sha.outputs.value }}
+    value: ${{ steps.determine-sha.outputs.value }}
   is-branch-protected:
     description: "Whether branch is protected ('true' or 'false' string, use fromJSON)."
     value: ${{ steps.determine-is-branch-protected.outputs.value }}

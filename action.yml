@@ -2,46 +2,69 @@ name: 'Setup Node.js project'
 description: 'Common first steps for Node.js GH actions jobs.'
 
 inputs:
+  github-token:
+    description: 'Used to check PRs draft flag on push events (secrets.GITHUB_TOKEN)'
+    required: true
   fetch-depth:
     description: 'Number of commits to fetch. 0 indicates all history for all branches and tags.'
     required: false
     default: '1'
+  protected-branches:
+    description: 'Comma-separated list of protected branch names. Used only if github-token is not specified.'
+    required: false
+    default: 'main,production,reference,staging,development,master'
 
 outputs:
   package-dir:
     description: "Path under which node package lives. To be used as 'working-directory' for other steps."
-    value: ${{ steps.find-package-dir.outputs.package-dir }}
+    value: ${{ steps.determine-package-dir.outputs.value }}
+  branch:
+    description: "Branch name. Also works for PR events."
+    value: ${ steps.determine-branch.outputs.value }}
+  sha:
+    description: "SHA. Also works for PR events."
+    value: ${ steps.determine-sha.outputs.value }}
+  is-branch-protected:
+    description: "Whether branch is protected ('true' or 'false' string, use fromJSON)."
+    value: ${{ steps.determine-is-branch-protected.outputs.value }}
+  is-pr-published:
+    description: "Whether PR is published ('true' or 'false' string, use fromJSON)."
+    value: ${{ steps.determine-is-pr-published.outputs.value }}
 
 runs:
   using: "composite"
   steps:
+
+    # 💡 Set ACTIONS_STEP_DEBUG=true secret in the repository to see debug messages.
 
     - name: 'Checkout'
       uses: actions/checkout@v2
       with:
         fetch-depth: ${{ inputs.fetch-depth }}
 
-    - name: 'Find package directory'
-      id: find-package-dir
+    - id: determine-package-dir
       shell: sh
       run: |
+        # Determine package directory
+
         # Take first package.json that we can find
         package_json="$( git ls-files ':(glob)**/package.json' | head -n1 )"
         if [ -z "$package_json" ]
         then
-          echo "ERROR Failed to locate package.json."
+          echo "::error::Failed to locate package.json."
           exit 1
         fi
         package_dir="$( dirname "$package_json" )"
-        echo "Found package.json in '$package_dir'."
-        echo "::set-output name=package-dir::$package_dir"
+        echo "::debug::Found package.json in '$package_dir'."
+        echo "::set-output name=value::$package_dir"
 
-    - name: 'Read node.js version'
-      id: node-version
+    - id: determine-node-version
       shell: sh
       env:
-        PACKAGE_DIR: ${{ steps.find-package-dir.outputs.package-dir }}
+        PACKAGE_DIR: ${{ steps.determine-package-dir.outputs.value }}
       run: |
+        # Determine node.js version
+
         ver_files=".node-version .nvmrc"
         for file in $ver_files
         do
@@ -56,17 +79,17 @@ runs:
 
         if [ -z "$ver_file" ]
         then
-          echo >&2 "ERROR Failed to locate node.js version file. Tried: $ver_files (in $PACKAGE_DIR)"
+          echo "::error::Failed to locate node.js version file. Tried: $ver_files (in $PACKAGE_DIR)"
           exit 1
         fi
 
         ver="$( sed 's/^v//' "$ver_file" )"
         if [ -z "$ver" ]
         then
-          echo >&2 "ERROR Failed to read version number from $ver_file"
+          echo "::error::Failed to read version number from $ver_file"
           exit 1
         else
-          echo "Found version '$ver' in $ver_file"
+          echo "::debug::Found version '$ver' in $ver_file"
         fi
         echo "::set-output name=value::$ver"
 
@@ -78,19 +101,20 @@ runs:
           **/node_modules
           ~/.cache/Cypress
         key: |
-          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
+          modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
         restore-keys: |
-          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
-          modules-node-${{ runner.os }}-${{ steps.node-version.outputs.value }}-
+          modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
+          modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-
 
     - name: 'Setup node'
       uses: actions/setup-node@v1
       with:
-        node-version: ${{ steps.node-version.outputs.value }}
+        node-version: ${{ steps.determine-node-version.outputs.value }}
 
-    - name: 'Install Yarn'
-      shell: sh
+    - shell: sh
       run: |
+        # Install Yarn
+
         if ! command -v yarn >/dev/null
         then
           npm install -g yarn
@@ -98,7 +122,7 @@ runs:
 
     - name: 'Install modules'
       shell: sh
-      working-directory: ${{ steps.find-package-dir.outputs.package-dir }}
+      working-directory: ${{ steps.determine-package-dir.outputs.value }}
       run: |
         if [ -r "package-lock.json" ]
         then
@@ -107,6 +131,97 @@ runs:
         then
           yarn install --frozen-lockfile
         else
-          echo >&2 "ERROR No package lock file found."
+          echo "::error::No package lock file found."
           exit 1
         fi
+
+    - id: determine-branch
+      shell: sh
+      run: |
+        # Determine branch name
+
+        ref="${{ github.ref }}"
+        echo "::debug::github.ref = '$ref'"
+        head_ref="${{ github.head_ref }}"
+        echo "::debug::github.head_ref = '$head_ref'"
+
+        branch="$( echo "${head_ref:-$ref}" | sed 's~^refs/heads/~~' )"
+
+        echo "::set-output name=value::$branch"
+        echo "branch = '$branch'"
+
+    - id: determine-sha
+      shell: sh
+      run: |
+        # Determine SHA
+
+        sha="${{ github.sha }}"
+        echo "::debug::github.sha = '$sha'"
+        pr_sha="${{ github.event.pull_request.head.sha }}"
+        echo "::debug::github.event.pull_request.head.sha = '$pr_sha'"
+
+        if [ -n "$pr_sha" ]
+        then
+          sha="$pr_sha"
+        fi
+
+        echo "::set-output name=value::$sha"
+        echo "sha = '$sha'"
+
+    - id: determine-is-branch-protected
+      shell: sh
+      env:
+        BRANCH: ${{ steps.determine-branch.outputs.value }}
+        PROTECTED_BRANCHES_LIST: ${{ inputs.protected-branches }}
+      run: |
+        # Determine whether branch is protected
+
+        protected_branches="$( echo "$PROTECTED_BRANCHES_LIST" | sed 's/\s*,\s*/\n/g' )"
+        echo "::debug::protected branches = '$( echo "$protected_branches" | paste -sd, )'"
+
+        # This awk script checks if one of the lines is _eactly_ $BRANCH
+        if echo "$protected_branches" | awk -v b="$BRANCH" '$1 == b { exit 0 } ENDFILE { exit 1 }'
+        then
+          is_branch_protected=${{ toJSON(true) }}
+        else
+          is_branch_protected=${{ toJSON(false) }}
+        fi
+
+        echo "::set-output name=value::$is_branch_protected"
+        echo "is-branch-protected = '$is_branch_protected'"
+
+
+    - id: determine-is-pr-published
+      shell: sh
+      env:
+        IS_PROTECTED_JSON: ${{ steps.determine-is-branch-protected.outputs.value }}
+        PR_IS_DRAFT: ${{ github.event.pull_request.draft }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        # Determine whether PR is published
+
+        if [ "$IS_PROTECTED_JSON" = "${{ toJSON(true) }}" ]
+        then
+          echo "::debug::Branch is protected, not checking if PR is published."
+          is_pr_published=${{ toJSON(false) }}
+        else
+          is_draft="$PR_IS_DRAFT"
+          echo "::debug::is_draft from PR event = '$is_draft'"
+          # draft flag is only available on pull request events, so in
+          # e.g. pull events we need to use GitHub API to check it
+          if [ -z "$is_draft" ]
+          then
+            is_draft="$( gh pr view --json isDraft -q .isDraft "$branch" || : )"
+            echo "::debug::is_draft from API = '${is_draft}'"
+          fi
+
+          if [ "$is_draft" = "false" ]
+          then
+            is_pr_published=${{ toJSON(true) }}
+          else
+            is_pr_published=${{ toJSON(false) }}
+          fi
+        fi
+
+        echo "::set-output name=value::$is_pr_published"
+        echo "is-pr-published = '$is_pr_published'"

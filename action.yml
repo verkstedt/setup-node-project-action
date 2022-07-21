@@ -111,11 +111,10 @@ runs:
       with:
         node-version: ${{ steps.determine-node-version.outputs.value }}
 
-    - shell: sh
+    - name: 'Install yarn (if needed)'
+      shell: sh
       run: |
-        # Install Yarn
-
-        if ! command -v yarn >/dev/null
+        if [ -r "yarn.lock" ] && ! command -v yarn >/dev/null
         then
           npm install -g yarn
         fi

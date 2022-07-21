@@ -101,9 +101,9 @@ runs:
           **/node_modules
           ~/.cache/Cypress
         key: |
-          modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
+          modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}_${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
-          modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}
+          modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-${{ hashFiles('**/package-lock.json') }}_${{ hashFiles('**/yarn.lock') }}_${{ hashFiles('**/pnpm-lock.yaml') }}
           modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-
 
     - name: 'Setup node'
@@ -111,12 +111,16 @@ runs:
       with:
         node-version: ${{ steps.determine-node-version.outputs.value }}
 
-    - name: 'Install yarn (if needed)'
+    - name: 'Install package manager'
       shell: sh
       run: |
         if [ -r "yarn.lock" ] && ! command -v yarn >/dev/null
         then
           npm install -g yarn
+        fi
+        if [ -r pnpm-lock.yaml ] && ! command -v pnpm >/dev/null
+        then
+          npm install -g pnpm
         fi
 
     - name: 'Install modules'
@@ -129,6 +133,9 @@ runs:
         elif [ -r "yarn.lock" ]
         then
           yarn install --frozen-lockfile
+        elif [ -r "pnpm-lock.yaml" ]
+        then
+          pnpm install --frozen-lockfile
         else
           echo "::error::No package lock file found."
           exit 1

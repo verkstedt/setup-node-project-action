@@ -126,6 +126,9 @@ runs:
     - name: 'Install modules'
       shell: sh
       working-directory: ${{ steps.determine-package-dir.outputs.value }}
+      env:
+        # Don't install git hooks
+        HUSKY: 0
       run: |
         if [ -r "package-lock.json" ]
         then

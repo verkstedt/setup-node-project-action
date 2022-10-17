@@ -38,7 +38,7 @@ runs:
     # 💡 Set ACTIONS_STEP_DEBUG=true secret in the repository to see debug messages.
 
     - name: 'Checkout'
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: ${{ inputs.fetch-depth }}
 
@@ -95,7 +95,7 @@ runs:
 
     - name: 'Cache node_modules'
       id: cache-node-modules
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: |
           **/node_modules
@@ -107,7 +107,7 @@ runs:
           modules-node-${{ runner.os }}-${{ steps.determine-node-version.outputs.value }}-
 
     - name: 'Setup node'
-      uses: actions/setup-node@v1
+      uses: actions/setup-node@v3
       with:
         node-version: ${{ steps.determine-node-version.outputs.value }}
 

@@ -48,7 +48,11 @@ runs:
         # Determine package directory
 
         # Take first package.json that we can find
-        package_json="$( git ls-files ':(glob)**/package.json' | head -n1 )"
+        package_json="$(
+          git ls-files ':(glob)**/package.json' | \
+            perl -e 'print sort { length($a) <=> length($b) } <>' | \
+            head -n1
+          )"
         if [ -z "$package_json" ]
         then
           echo "::error::Failed to locate package.json."

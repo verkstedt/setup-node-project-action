@@ -5,11 +5,9 @@
 ```yaml
 steps:
   - name: 'Setup'
-    uses: verkstedt/setup-node-project-action@v1
+    uses: verkstedt/setup-node-project-action@main
 ```
 
-### Parameters
+### Inputs and Outputs
 
-- `fetch-depth`
-  By default fetches only latest commit. Set to `0` to fetch full history.
-  See [checkout](https://github.com/actions/checkout) action for more details.
+See [action.yml](./action.yml).
